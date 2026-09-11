@@ -1,0 +1,5 @@
+terraform/environments/dev/.terraform/
+terraform/environments/dev/*.tfstate
+terraform/environments/dev/*.tfstate.*
+terraform/environments/dev/terraform.tfvars 
+
