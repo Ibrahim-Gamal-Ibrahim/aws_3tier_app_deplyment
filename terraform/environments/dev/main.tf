@@ -164,3 +164,13 @@ module "jenkins" {
 
   admin_cidr = var.admin_ip
 }
+
+resource "aws_autoscaling_lifecycle_hook" "backend_configuration" {
+  name                   = "backend-configuration-hook"
+  autoscaling_group_name = module.backend_asg.asg_name
+
+  lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
+
+  heartbeat_timeout = 900
+  default_result    = "CONTINUE"
+}

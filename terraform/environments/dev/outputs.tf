@@ -26,3 +26,7 @@ output "db_port" {
 output "jenkins_public_ip" {
   value = module.jenkins.jenkins_public_ip
 }
+
+output "backend_alb_dns_name" {
+  value = module.backend_alb.dns_name
+}
