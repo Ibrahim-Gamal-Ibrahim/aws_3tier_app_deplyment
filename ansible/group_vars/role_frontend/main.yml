@@ -1,0 +1,4 @@
+backend_alb_dns: "internal-backend-internal-alb-159086012.eu-north-1.elb.amazonaws.com"
+ansible_ssh_common_args: >
+  -o ProxyJump=ubuntu@51.21.150.124
+

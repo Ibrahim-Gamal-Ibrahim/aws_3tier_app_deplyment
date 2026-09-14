@@ -1,0 +1,22 @@
+---
+- name: Configure frontend servers
+  hosts: role_frontend
+  become: true
+
+  roles:
+  - frontend
+
+- name: Configure backend servers
+  hosts: role_backend
+  serial: 1 # to tell ansible to finish the tasks on node one then move to node to .. this avoide the LB health check to fail
+  become: true
+  roles:
+    - backend
+
+
+- name: Configure Jenkins server
+  hosts: role_jenkins
+  become: true
+
+  roles:
+    - jenkins

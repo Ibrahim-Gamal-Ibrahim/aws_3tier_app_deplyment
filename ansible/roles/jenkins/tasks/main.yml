@@ -1,0 +1,127 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - fontconfig
+      - openjdk-21-jre
+      - git
+      - curl
+      - unzip
+      - jq
+      - python3-pip
+      - python3-boto3
+      - python3-botocore
+    state: present
+
+- name: Create Jenkins keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Jenkins repository key
+  ansible.builtin.get_url:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
+    dest: /etc/apt/keyrings/jenkins-keyring.asc
+    mode: "0644"
+
+- name: Configure Jenkins apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+    filename: jenkins
+    state: present
+    update_cache: false
+
+- name: Update apt cache after adding Jenkins repository
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install Jenkins
+  ansible.builtin.apt:
+    name: jenkins
+    state: present
+  notify: Restart Jenkins
+
+- name: Enable and start Jenkins
+  ansible.builtin.systemd:
+    name: jenkins
+    state: started
+    enabled: true
+
+
+- name: Download AWS CLI installer
+  ansible.builtin.get_url:
+    url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+    dest: /tmp/awscliv2.zip
+    mode: "0644"
+
+- name: Unarchive AWS CLI installer
+  ansible.builtin.unarchive:
+    src: /tmp/awscliv2.zip
+    dest: /tmp
+    remote_src: true
+
+- name: Install AWS CLI
+  ansible.builtin.command:
+    cmd: /tmp/aws/install --update
+  changed_when: false
+
+- name: Install Ansible
+  ansible.builtin.apt:
+    name: ansible
+    state: present
+
+- name: Install amazon.aws collection
+  ansible.builtin.command:
+    cmd: ansible-galaxy collection install amazon.aws
+  changed_when: false
+
+- name: Install HashiCorp repository dependencies
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - software-properties-common
+    state: present
+
+- name: Download HashiCorp GPG key
+  ansible.builtin.get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /tmp/hashicorp.gpg
+    mode: "0644"
+
+- name: Install HashiCorp GPG key
+  ansible.builtin.shell: |
+    gpg --dearmor < /tmp/hashicorp.gpg > /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+- name: Add HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    filename: hashicorp
+    state: present
+
+- name: Update apt cache after adding HashiCorp repository
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install Terraform
+  ansible.builtin.apt:
+    name: terraform
+    state: present
+
+- name: Verify Terraform installation
+  ansible.builtin.command:
+    cmd: terraform version
+  register: terraform_version
+  changed_when: false
+
+- name: Display Terraform version
+  ansible.builtin.debug:
+    var: terraform_version.stdout
+

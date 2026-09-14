@@ -24,13 +24,19 @@ resource "aws_lb_target_group" "backend" {
   vpc_id   = var.vpc_id
 
   health_check {
-    path                = "/health"
-    protocol            = "HTTP"
-    port                = "traffic-port"
-    matcher             = "200"
-    healthy_threshold   = 2
-    unhealthy_threshold = 2
-  }
+  enabled             = true
+  path                = "/health"
+  protocol            = "HTTP"
+  port                = "traffic-port"
+
+  interval            = 30
+  timeout             = 10
+
+  healthy_threshold   = 2
+  unhealthy_threshold = 6
+
+  matcher             = "200"
+}
 
   tags = {
     Name = "backend-target-group"

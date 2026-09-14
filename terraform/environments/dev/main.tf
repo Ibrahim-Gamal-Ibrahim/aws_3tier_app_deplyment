@@ -16,6 +16,8 @@ module "security" {
 
   vpc_id   = module.networking.vpc_id
   admin_ip = var.admin_ip
+
+  jenkins_security_group_id = module.jenkins.jenkins_security_group_id
 }
 
 
@@ -24,7 +26,7 @@ module "compute" {
 
   instance_type = var.instance_type
 
-  public_subnet_a_id = module.networking.public_subnet_a_id
+  public_subnet_a_id  = module.networking.public_subnet_a_id
   private_subnet_a_id = module.networking.private_subnet_a_id
   private_subnet_b_id = module.networking.private_subnet_b_id
 
@@ -147,4 +149,18 @@ module "database" {
 
   db_instance_class = "db.t3.micro"
   allocated_storage = 20
+}
+
+module "jenkins" {
+  source = "../../modules/jenkins"
+
+  name             = "jenkins"
+  vpc_id           = module.networking.vpc_id
+  public_subnet_id = module.networking.public_subnet_a_id
+
+  ami_id        = module.compute.ubuntu_ami_id
+  instance_type = "t3.small"
+  key_name      = "terra-key"
+
+  admin_cidr = var.admin_ip
 }

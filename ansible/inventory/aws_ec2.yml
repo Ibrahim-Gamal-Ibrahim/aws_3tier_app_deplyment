@@ -1,0 +1,19 @@
+plugin: amazon.aws.aws_ec2
+
+regions:
+  - eu-north-1
+
+filters:
+  instance-state-name: running
+  tag:Environment: dev
+
+hostnames:
+  - private-ip-address
+
+compose:
+  ansible_host: "(tags.Role == 'jenkins') | ternary(public_ip_address, private_ip_address)"
+
+keyed_groups:
+  - key: tags.Role
+    prefix: role
+    separator: "_"

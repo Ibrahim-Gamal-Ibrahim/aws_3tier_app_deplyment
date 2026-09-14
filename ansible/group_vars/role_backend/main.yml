@@ -1,0 +1,9 @@
+
+ansible_ssh_common_args: >
+  -o ProxyJump=ubuntu@51.21.150.124
+  
+db_host: "app-postgres-db.c56q8qm04ivv.eu-north-1.rds.amazonaws.com"
+db_port: 5432
+db_name: "appdb"
+db_user: "appadmin"
+db_password: "{{ vault_db_password }}"

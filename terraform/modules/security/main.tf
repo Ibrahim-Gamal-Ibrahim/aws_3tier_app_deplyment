@@ -177,6 +177,24 @@ resource "aws_vpc_security_group_ingress_rule" "database_postgresql" {
   to_port     = 5432
   ip_protocol = "tcp"
 }
+#Jenkins part
+resource "aws_security_group_rule" "jenkins_to_frontend_ssh" {
+  type                     = "ingress"
+  from_port                = 22
+  to_port                  = 22
+  protocol                 = "tcp"
 
+  source_security_group_id = var.jenkins_security_group_id
+  security_group_id        = aws_security_group.frontend.id
+}
 
+resource "aws_security_group_rule" "jenkins_to_backend_ssh" {
+  type                     = "ingress"
+  from_port                = 22
+  to_port                  = 22
+  protocol                 = "tcp"
+
+  source_security_group_id = var.jenkins_security_group_id
+  security_group_id        = aws_security_group.backend.id
+}
 

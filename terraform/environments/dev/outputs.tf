@@ -22,3 +22,7 @@ output "db_endpoint" {
 output "db_port" {
   value = module.database.db_port
 }
+
+output "jenkins_public_ip" {
+  value = module.jenkins.jenkins_public_ip
+}

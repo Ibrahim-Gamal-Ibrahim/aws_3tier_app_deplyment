@@ -1,0 +1,23 @@
+[Unit]
+Description=Todo Node.js Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/todo-backend
+
+Environment="DB_HOST={{ db_host }}"
+Environment="DB_PORT={{ db_port }}"
+Environment="DB_NAME={{ db_name }}"
+Environment="DB_USER={{ db_user }}"
+Environment="DB_PASSWORD={{ db_password }}"
+
+ExecStart=/usr/bin/node /opt/todo-backend/server.js
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

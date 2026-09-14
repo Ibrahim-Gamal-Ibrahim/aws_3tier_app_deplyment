@@ -1,0 +1,3 @@
+# group_vars/role_jenkins.yml
+
+ansible_user: ubuntu
