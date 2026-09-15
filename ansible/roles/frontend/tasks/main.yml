@@ -1,9 +1,28 @@
 ---
+- name: Wait for cloud-init to finish
+  command: cloud-init status --wait
+  changed_when: false
+
+- name: Wait for apt lock
+  shell: |
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1 || \
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+      sleep 5
+    done
+  changed_when: false
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
   become: true
+
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
 
 - name: Install nginx
   ansible.builtin.apt:

@@ -90,3 +90,12 @@ variable "db_password" {
   type        = string
   sensitive   = true
 }
+
+variable "jenkins_user" {
+  type = string
+}
+
+variable "jenkins_api_token" {
+  type      = string
+  sensitive = true
+}

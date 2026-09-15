@@ -172,5 +172,52 @@ resource "aws_autoscaling_lifecycle_hook" "backend_configuration" {
   lifecycle_transition = "autoscaling:EC2_INSTANCE_LAUNCHING"
 
   heartbeat_timeout = 900
-  default_result    = "CONTINUE"
+  default_result    = "ABANDON"
+}
+
+module "backend_automation" {
+  source = "../../modules/backend-automation"
+
+  vpc_id = module.networking.vpc_id
+
+  private_subnet_a_id = module.networking.private_subnet_a_id
+  private_subnet_b_id = module.networking.private_subnet_b_id
+
+  jenkins_security_group_id = module.jenkins.jenkins_security_group_id
+  jenkins_private_ip        = module.jenkins.jenkins_private_ip
+
+  jenkins_job_name  = "backend-asg-configure"
+  jenkins_user      = var.jenkins_user
+  jenkins_api_token = var.jenkins_api_token
+
+  backend_asg_name = module.backend_asg.asg_name
+
+  backend_lifecycle_hook_name = aws_autoscaling_lifecycle_hook.backend_configuration.name
+}
+
+resource "aws_autoscaling_lifecycle_hook" "frontend_configuration" {
+  name                   = "frontend-configuration-hook"
+  autoscaling_group_name = module.frontend_asg.asg_name
+  lifecycle_transition   = "autoscaling:EC2_INSTANCE_LAUNCHING"
+  heartbeat_timeout      = 900
+  default_result         = "ABANDON"
+}
+
+module "frontend_automation" {
+  source = "../../modules/frontend-automation"
+
+  vpc_id = module.networking.vpc_id
+
+  private_subnet_a_id = module.networking.private_subnet_a_id
+  private_subnet_b_id = module.networking.private_subnet_b_id
+
+  jenkins_security_group_id = module.jenkins.jenkins_security_group_id
+  jenkins_private_ip        = module.jenkins.jenkins_private_ip
+
+  frontend_asg_name            = module.frontend_asg.asg_name
+  frontend_lifecycle_hook_name = aws_autoscaling_lifecycle_hook.frontend_configuration.name
+
+  jenkins_job_name  = "frontend-asg-configure"
+  jenkins_user      = var.jenkins_user
+  jenkins_api_token = var.jenkins_api_token
 }
