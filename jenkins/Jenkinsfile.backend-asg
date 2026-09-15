@@ -1,0 +1,164 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(
+            name: 'INSTANCE_ID',
+            defaultValue: '',
+            description: 'Backend EC2 instance ID launched by the Auto Scaling Group'
+        )
+    }
+
+    environment {
+        AWS_REGION = 'eu-north-1'
+        ASG_NAME = 'backend-asg'
+        LIFECYCLE_HOOK_NAME = 'backend-configuration-hook'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/Ibrahim-Gamal-Ibrahim/aws_3tier_app_deplyment.git'
+            }
+        }
+
+        stage('Validate Input') {
+            steps {
+                script {
+                    if (!params.INSTANCE_ID?.trim()) {
+                        error('INSTANCE_ID was not provided')
+                    }
+
+                    echo "Instance ID: ${params.INSTANCE_ID}"
+                }
+            }
+        }
+
+        stage('Get Backend Private IP') {
+            steps {
+                script {
+                    env.NEW_BACKEND_IP = sh(
+                        script: """
+                            aws ec2 describe-instances \
+                              --region ${env.AWS_REGION} \
+                              --instance-ids ${params.INSTANCE_ID} \
+                              --query 'Reservations[0].Instances[0].PrivateIpAddress' \
+                              --output text
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    if (!env.NEW_BACKEND_IP || env.NEW_BACKEND_IP == 'None') {
+                        error("Could not resolve private IP for ${params.INSTANCE_ID}")
+                    }
+
+                    echo "Backend private IP: ${env.NEW_BACKEND_IP}"
+                }
+            }
+        }
+
+        stage('Test SSH') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    retry(6) {
+                        sh '''
+                            ssh \
+                              -o StrictHostKeyChecking=no \
+                              -o ConnectTimeout=10 \
+                              ubuntu@$NEW_BACKEND_IP \
+                              "hostname && whoami"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Run Backend Ansible Role') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'ansible-vault-password',
+                        variable: 'VAULT_PASS'
+                    )
+                ]) {
+                    sshagent(credentials: ['backend-ssh-key']) {
+                        sh '''
+                            cd ansible
+
+                            printf '%s' "$VAULT_PASS" > .vault-pass
+                            chmod 600 .vault-pass
+
+                            ansible-playbook site.yml \
+                              --limit "$NEW_BACKEND_IP" \
+                              --vault-password-file .vault-pass \
+                              -e 'ansible_ssh_common_args='
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Verify Backend Service') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        ssh \
+                          -o StrictHostKeyChecking=no \
+                          ubuntu@$NEW_BACKEND_IP \
+                          "systemctl is-active todo-backend"
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Backend Health') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    retry(5) {
+                        sh '''
+                            ssh \
+                              -o StrictHostKeyChecking=no \
+                              ubuntu@$NEW_BACKEND_IP \
+                              "curl -f http://127.0.0.1:3000/health"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Complete Lifecycle Hook') {
+            steps {
+                sh """
+                    aws autoscaling complete-lifecycle-action \
+                      --lifecycle-hook-name ${env.LIFECYCLE_HOOK_NAME} \
+                      --auto-scaling-group-name ${env.ASG_NAME} \
+                      --lifecycle-action-result CONTINUE \
+                      --instance-id ${params.INSTANCE_ID} \
+                      --region ${env.AWS_REGION}
+                """
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo "Backend instance ${params.INSTANCE_ID} configured successfully."
+            echo "Lifecycle action completed with CONTINUE."
+        }
+
+        failure {
+            echo "Pipeline failed."
+            echo "Lifecycle action was NOT completed."
+            echo "The instance should remain in Pending:Wait until timeout or manual action."
+        }
+
+        always {
+            sh '''
+                rm -f ansible/.vault-pass || true
+            '''
+        }
+    }
+}

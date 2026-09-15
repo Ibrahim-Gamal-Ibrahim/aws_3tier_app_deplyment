@@ -1,0 +1,194 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'eu-north-1'
+        BACKEND_ALB_NAME = 'backend-internal-alb'
+        APP_URL = 'https://app.devopstest.click'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/Ibrahim-Gamal-Ibrahim/aws_3tier_app_deplyment.git'
+            }
+        }
+
+        stage('Prepare Ansible Vault') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'ansible-vault-password',
+                        variable: 'VAULT_PASS'
+                    )
+                ]) {
+                    sh '''
+                        cd ansible
+
+                        printf '%s' "$VAULT_PASS" > .vault-pass
+                        chmod 600 .vault-pass
+                    '''
+                }
+            }
+        }
+
+        stage('Validate AWS Access') {
+            steps {
+                sh '''
+                    aws sts get-caller-identity
+                '''
+            }
+        }
+
+        stage('Show Dynamic Inventory') {
+            steps {
+                sh '''
+                    cd ansible
+
+                    ansible-inventory \
+                      --graph \
+                      --vault-password-file .vault-pass
+                '''
+            }
+        }
+
+        stage('Get Backend ALB DNS') {
+            steps {
+                script {
+                    env.BACKEND_ALB_DNS = sh(
+                        script: """
+                            aws elbv2 describe-load-balancers \
+                              --names ${env.BACKEND_ALB_NAME} \
+                              --region ${env.AWS_REGION} \
+                              --query 'LoadBalancers[0].DNSName' \
+                              --output text
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    if (!env.BACKEND_ALB_DNS ||
+                        env.BACKEND_ALB_DNS == 'None') {
+
+                        error('Could not resolve backend internal ALB DNS')
+                    }
+
+                    echo "Backend ALB DNS: ${env.BACKEND_ALB_DNS}"
+                }
+            }
+        }
+
+        stage('Configure All Backends') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        cd ansible
+
+                        ansible-playbook site.yml \
+                          --limit role_backend \
+                          --vault-password-file .vault-pass \
+                          -e 'ansible_ssh_common_args='
+                    '''
+                }
+            }
+        }
+
+        stage('Verify All Backends') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        cd ansible
+
+                        ansible role_backend \
+                          -m ansible.builtin.shell \
+                          -a 'systemctl is-active todo-backend && curl -f http://127.0.0.1:3000/health' \
+                          --vault-password-file .vault-pass \
+                          -e 'ansible_ssh_common_args='
+                    '''
+                }
+            }
+        }
+
+        stage('Configure All Frontends') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        cd ansible
+
+                        ansible-playbook site.yml \
+                          --limit role_frontend \
+                          --vault-password-file .vault-pass \
+                          -e "backend_alb_dns=$BACKEND_ALB_DNS" \
+                          -e 'ansible_ssh_common_args='
+                    '''
+                }
+            }
+        }
+
+        stage('Verify All Frontends') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        cd ansible
+
+                        ansible role_frontend \
+                          -m ansible.builtin.shell \
+                          -a 'systemctl is-active nginx && sudo nginx -t && curl -f http://127.0.0.1/' \
+                          --vault-password-file .vault-pass \
+                          -e 'ansible_ssh_common_args='
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Reverse Proxy') {
+            steps {
+                sshagent(credentials: ['backend-ssh-key']) {
+                    sh '''
+                        cd ansible
+
+                        ansible role_frontend \
+                          -m ansible.builtin.uri \
+                          -a 'url=http://127.0.0.1/api/todos method=GET status_code=200' \
+                          --vault-password-file .vault-pass \
+                          -e 'ansible_ssh_common_args='
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Public Application') {
+            steps {
+                sh '''
+                    echo "Testing frontend..."
+                    curl -f "$APP_URL/"
+
+                    echo
+                    echo "Testing API..."
+                    curl -f "$APP_URL/api/todos"
+                '''
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'Initial infrastructure configuration completed successfully.'
+            echo 'Backend and frontend tiers are configured and validated.'
+            echo 'Full application path is working.'
+        }
+
+        failure {
+            echo 'Initial infrastructure configuration failed.'
+            echo 'Check the failed Jenkins stage before rerunning.'
+        }
+
+        always {
+            sh '''
+                rm -f ansible/.vault-pass || true
+            '''
+        }
+    }
+}

@@ -1,5 +1,22 @@
 terraform/environments/dev/.terraform/
 terraform/environments/dev/*.tfstate
 terraform/environments/dev/*.tfstate.*
-terraform/environments/dev/terraform.tfvars 
+terraform/environments/dev/terraform.tfvars
+terraform/environments/dev/*.auto.tfvars
+terraform/environments/dev/*.tfplan
+terraform/environments/dev/tfplan
 
+terraform/modules/backend-automation/lambda/*.zip
+terraform/modules/frontend-automation/lambda/*.zip
+
+*.pem
+*.key
+
+.env
+.env.*
+
+.vscode/
+.idea/
+
+.DS_Store
+Thumbs.db
