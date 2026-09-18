@@ -84,7 +84,7 @@ module "frontend_asg" {
 
   min_size         = 2
   desired_capacity = 2
-  max_size         = 4
+  max_size         = 3
 
   cpu_target_value = 50
 }
@@ -110,7 +110,7 @@ module "backend_asg" {
 
   min_size         = 2
   desired_capacity = 2
-  max_size         = 4
+  max_size         = 3
 
   cpu_target_value = 50
 }

@@ -43,7 +43,7 @@ resource "aws_autoscaling_group" "this" {
   ]
 
   health_check_type         = "ELB"
-  health_check_grace_period = 600
+  health_check_grace_period = 600   #After a new EC2 instance is launched into the Auto Scaling Group, ASG waits 600 seconds = 10 minutes before it starts using health check failures to decide that the instance is unhealthy and replace it.
 
   launch_template {
     id      = aws_launch_template.this.id
