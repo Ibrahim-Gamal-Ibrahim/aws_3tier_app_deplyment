@@ -1,0 +1,110 @@
+1- deploy the infra:
+  > terra form apply
+
+2- manually configure jenkins ec2 with ansible:
+  > ansible-playbook site.yml --limit role_jenkins
+
+3- configure the jenkins controller
+  a- configure username and password (Ibrahim matches with the terraform)
+  b- install the ssh plugin
+  c- configure jenkins api that used by lamda (jenkins api name: backend-lifecycle-lambda)
+  c- add the credentials (ansible vault password id: <ansible-vault-password> + ssh private key id : <backend-ssh-key> ->matches with the pipline used id  userame : <ubuntu>)
+
+4- configre the three piplelines below with the same names matched with lamda configuration
+
+backend-asg-configure
+frontend-asg-configure
+initial-infra-config
+
+with repo and jenkins files below:
+https://github.com/Ibrahim-Gamal-Ibrahim/aws_3tier_app_deplyment.git
+
+jenkins/Jenkinsfile.backend-asg
+jenkins/Jenkinsfile.frontend-asg
+jenkins/Jenkinsfile.initial
+
+
+testing:
+
+
+
+2- test the application after you run the initia jenkins file
+
+1- curl -i -X POST https://app.devopstest.click/api/todos \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Test from curl"}'
+
+2- curl -i -X DELETE https://app.devopstest.click/api/todos/1
+
+1- test the ASG:
+
+ssh on the two backend machines
+ssh -A -J ubuntu@<bastion public ip> -i ~/.ssh/terra-devops ubuntu@<bachend private ip>
+
+stress testing on the ASG:
+sudo apt update
+sudo apt install -y stress-ng
+
+stress-ng --cpu 0 --cpu-load 100 --timeout 8m
+
+- watch the asg from the terminal
+
+watch -n 5 '
+aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names backend-asg \
+  --region eu-north-1 \
+  --query "AutoScalingGroups[0].Instances[*].[InstanceId,LifecycleState,HealthStatus]" \
+  --output table
+'
+
+
+---------------------------------------------------------------------------------------------------
+
+
+
+
+release the hook lifecycle:
+
+for backend :
+aws autoscaling complete-lifecycle-action \
+  --lifecycle-hook-name backend-configuration-hook \
+  --auto-scaling-group-name backend-asg \
+  --lifecycle-action-result CONTINUE \
+  --instance-id <INSTANCE_ID> \
+  --region eu-north-1
+
+for frontend:
+aws autoscaling complete-lifecycle-action \
+  --lifecycle-hook-name frontend-configuration-hook \
+  --auto-scaling-group-name frontend-asg \
+  --lifecycle-action-result CONTINUE \
+  --instance-id <INSTANCE_ID> \
+  --region eu-north-1
+
+
+Namespace  → Which AWS service?
+Metric     → What am I measuring?
+Dimension  → Which specific resource?
+
+
+
+fuser tells us whether a process is currently using that file.
+
+Check whether any process is using an APT/dpkg lock
+        ↓
+If yes
+        ↓
+sleep 5 seconds
+        ↓
+check again
+        ↓
+repeat until locks are free
+
+
+Lifecycle hook
+= delays entering InService until configuration is ready
+
+health_check_grace_period
+= once it is entering/entered service, gives it time before ASG reacts to health-check failures
+
+In your project, the hook is the main protection during configuration, while the grace period is an extra safety buffer against premature replacement.
